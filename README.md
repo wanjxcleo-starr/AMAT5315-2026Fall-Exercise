@@ -42,3 +42,7 @@ PY
 ```
 
 The verified estimate is **3.146604**, with absolute error **0.005011**. The Week 1 test passes.
+
+## Week 1 evidence
+
+![Terminal output showing the Week 1 pytest pass, pi estimate 3.146604, and absolute error 0.005011](week1/result.png)
