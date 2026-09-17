@@ -9,17 +9,52 @@ fn compare_paths(label: &str, state: &FluidState) -> (f64, f64) {
         .flat_map(|(a, b)| (0..2).map(move |axis| (a[axis] - b[axis]).abs()))
         .fold(0.0_f64, f64::max);
     let energy_difference = (naive_energy - cell_energy).abs();
-    let force_scale = naive_forces
+    let max_abs_force = naive_forces
         .iter()
         .flatten()
         .copied()
         .map(f64::abs)
-        .fold(1.0_f64, f64::max);
+        .fold(0.0_f64, f64::max);
+    let force_scale = max_abs_force.max(1.0);
+    let force_tolerance = 1e-10 * force_scale;
+    let energy_tolerance = 1e-10 * naive_energy.abs().max(1.0);
     println!(
-        "{label}: max |ΔF_component|={max_force_difference:.3e}, |ΔE_pot|={energy_difference:.3e}, E_pot={naive_energy:.9e}"
+        "\nCASE {label}: n={}, box=[{:.17e}, {:.17e}]",
+        state.pos.len(),
+        state.box2.lx,
+        state.box2.ly
     );
-    assert!(max_force_difference <= 1e-10 * force_scale);
-    assert!(energy_difference <= 1e-10 * naive_energy.abs().max(1.0));
+    println!("E_pot naive = {naive_energy:+.17e}");
+    println!("E_pot cells = {cell_energy:+.17e}");
+    println!("max |ΔE_pot| = {energy_difference:.17e}; tolerance = {energy_tolerance:.17e}");
+    println!(
+        "max |F_naive component| = {max_abs_force:.17e}; tolerance scale = {force_scale:.17e}"
+    );
+    println!(
+        "max |ΔF_component| = {max_force_difference:.17e}; tolerance = {force_tolerance:.17e}"
+    );
+    println!("atom  x  y  naive_Fx  naive_Fy  cells_Fx  cells_Fy  |ΔFx|  |ΔFy|");
+    for (index, ((point, naive), cells)) in state
+        .pos
+        .iter()
+        .zip(&naive_forces)
+        .zip(&cell_forces)
+        .enumerate()
+    {
+        println!(
+            "{index:>4}  {:+.17e}  {:+.17e}  {:+.17e}  {:+.17e}  {:+.17e}  {:+.17e}  {:.17e}  {:.17e}",
+            point[0],
+            point[1],
+            naive[0],
+            naive[1],
+            cells[0],
+            cells[1],
+            (naive[0] - cells[0]).abs(),
+            (naive[1] - cells[1]).abs()
+        );
+    }
+    assert!(max_force_difference <= force_tolerance);
+    assert!(energy_difference <= energy_tolerance);
     (max_force_difference, energy_difference)
 }
 
