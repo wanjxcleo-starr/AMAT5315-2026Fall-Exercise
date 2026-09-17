@@ -10,6 +10,7 @@ pub struct RunMetadata {
     pub box2: Box2,
     pub dt: f64,
     pub temperature: f64,
+    pub ramp_to: Option<f64>,
     pub eq_steps: usize,
     pub steps: usize,
     pub sample_every: usize,
@@ -75,9 +76,9 @@ impl SavedFrame {
 }
 
 pub fn write_run_json(writer: &mut impl Write, metadata: &RunMetadata) -> io::Result<()> {
-    writeln!(
+    write!(
         writer,
-        "{{\"n\":{},\"rho\":{:.17e},\"box\":[{:.17e},{:.17e}],\"dt\":{:.17e},\"temperature\":{:.17e},\"eq_steps\":{},\"steps\":{},\"sample_every\":{},\"seed\":{},\"integrator\":\"velocity-verlet\"}}",
+        "{{\"n\":{},\"rho\":{:.17e},\"box\":[{:.17e},{:.17e}],\"dt\":{:.17e},\"temperature\":{:.17e},\"eq_steps\":{},\"steps\":{},\"sample_every\":{},\"seed\":{},\"ramp_to\":",
         metadata.n,
         metadata.rho,
         metadata.box2.lx,
@@ -88,7 +89,12 @@ pub fn write_run_json(writer: &mut impl Write, metadata: &RunMetadata) -> io::Re
         metadata.steps,
         metadata.sample_every,
         metadata.seed
-    )
+    )?;
+    match metadata.ramp_to {
+        Some(target) => write!(writer, "{target:.17e}")?,
+        None => write!(writer, "null")?,
+    }
+    writeln!(writer, ",\"integrator\":\"velocity-verlet\"}}")
 }
 
 pub fn write_frame_jsonl(writer: &mut impl Write, frame: &SavedFrame) -> io::Result<()> {
@@ -167,6 +173,7 @@ mod tests {
             box2: crate::fluid::lattice(100, 0.8).unwrap().box2,
             dt: 0.01,
             temperature: 0.5,
+            ramp_to: None,
             eq_steps: 2000,
             steps: 10000,
             sample_every: 50,

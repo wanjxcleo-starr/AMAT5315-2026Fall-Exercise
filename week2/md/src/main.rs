@@ -17,6 +17,7 @@ struct Config {
     n: usize,
     rho: f64,
     temperature: f64,
+    ramp_to: Option<f64>,
     dt: f64,
     eq_steps: usize,
     steps: usize,
@@ -44,7 +45,7 @@ fn parse_args() -> Result<Config, String> {
         let key = flag
             .strip_prefix("--")
             .ok_or_else(|| format!("unexpected argument: {flag}"))?;
-        if key != "force" && !REQUIRED_KEYS.contains(&key) {
+        if key != "force" && key != "ramp-to" && !REQUIRED_KEYS.contains(&key) {
             return Err(format!("unknown option: {flag}"));
         }
         let value = args
@@ -80,6 +81,10 @@ fn parse_args() -> Result<Config, String> {
     let rho = real("rho")?;
     lattice(n, rho)?;
     let temperature = real("temperature")?;
+    let ramp_to = options
+        .get("ramp-to")
+        .map(|_| real("ramp-to"))
+        .transpose()?;
     let dt = real("dt")?;
     let eq_steps = number("eq-steps")?;
     let steps = number("steps")?;
@@ -99,6 +104,7 @@ fn parse_args() -> Result<Config, String> {
         n,
         rho,
         temperature,
+        ramp_to,
         dt,
         eq_steps,
         steps,
@@ -124,6 +130,7 @@ fn run(config: Config) -> Result<(), String> {
         box2: state.box2,
         dt: config.dt,
         temperature: config.temperature,
+        ramp_to: config.ramp_to,
         eq_steps: config.eq_steps,
         steps: config.steps,
         sample_every: config.sample_every,
@@ -145,6 +152,13 @@ fn run(config: Config) -> Result<(), String> {
     writeln!(stdout, "t\tE_pot\tE_kin").map_err(|e| e.to_string())?;
     for step in 1..=config.steps {
         velocity_verlet_step_with_method(&mut state, config.dt, config.force)?;
+        if step % 50 == 0 {
+            if let Some(ramp_to) = config.ramp_to {
+                let progress = step as f64 / config.steps as f64;
+                let target = (1.0 - progress) * config.temperature + progress * ramp_to;
+                rescale_to_temperature(&mut state, target)?;
+            }
+        }
         if step % config.sample_every == 0 {
             let frame = SavedFrame::from_state_with_method(step, config.dt, &state, config.force)?;
             write_frame_jsonl(&mut trajectory, &frame)

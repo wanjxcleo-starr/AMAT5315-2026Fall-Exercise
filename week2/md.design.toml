@@ -7,7 +7,7 @@ start = "triangular lattice at density rho; n = 100 is 10 columns by 10 rows"
 velocities = "seeded Gaussian, variance temperature; centre of mass at rest"
 thermostat = "rescale velocities at the start and every 50 equilibration steps"
 t-thermo = "T_thermo = 2 E_kin / (2 n - 2), the mean velocity being removed"
-production = "thermostat off; production time starts at zero after equilibration"
+production = "thermostat off without ramp-to; production time starts at zero after equilibration"
 
 [md]
 usage = "md --n 100 --rho 0.8 --temperature 0.5 --dt 0.01 --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 --out artifacts"
@@ -35,6 +35,12 @@ out = "output folder: artifacts for the gate's run, elsewhere for other runs"
 usage = "md --n 100 --rho 0.8 --temperature 0.5 --dt 0.01 --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 --force naive --out /tmp/naive"
 choices = "naive or cells; cells is the default, naive stays for comparison"
 physics = "both methods compute the same forces and potential energy"
+
+[md.heating]
+usage = "md --n 400 --rho 0.8 --temperature 0.2 --ramp-to 1.2 --dt 0.01 --eq-steps 2000 --steps 20000 --sample-every 100 --seed 2026 --out heating"
+target = "ramp linearly from temperature at step 0 to ramp-to at the last step"
+thermostat = "rescale velocities every 50 production steps; without ramp-to, none"
+writes = "ramp_to in run.json; heating output never goes to artifacts/"
 
 [md.encoding]
 precision = "positions and velocities with 9 significant digits"
