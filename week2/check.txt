@@ -1,0 +1,5 @@
+secular_drift = 0.000175294758 ; limit < 0.002 ; PASS
+abs(T_speed - 0.5) = 0.0194434986 ; limit < 0.05 ; PASS
+chi2/22 = 0.861454545 ; limit < 2 ; PASS
+T_speed = 0.519443499 ; first/last window k = 20
+stored-energy cross-check: max |E_pot difference| = 4.26e-13, max |E_kin difference| = 7.11e-14 (abs_tol=1e-08, rel_tol=1e-10)
