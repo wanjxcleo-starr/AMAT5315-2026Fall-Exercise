@@ -1,4 +1,6 @@
 pub mod dimer;
+pub mod fluid;
+pub mod record;
 
 pub fn greeting() -> &'static str {
     "Hello, world!"
