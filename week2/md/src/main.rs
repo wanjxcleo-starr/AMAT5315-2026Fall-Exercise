@@ -7,7 +7,9 @@ use std::{
 };
 
 use md::{
-    fluid::{FluidState, lattice, rescale_to_temperature, velocity_verlet_step},
+    fluid::{
+        FluidState, ForceMethod, lattice, rescale_to_temperature, velocity_verlet_step_with_method,
+    },
     record::{RunMetadata, SavedFrame, write_frame_jsonl, write_run_json},
 };
 
@@ -20,11 +22,12 @@ struct Config {
     steps: usize,
     sample_every: usize,
     seed: u64,
+    force: ForceMethod,
     out: PathBuf,
 }
 
 fn parse_args() -> Result<Config, String> {
-    const KEYS: [&str; 9] = [
+    const REQUIRED_KEYS: [&str; 9] = [
         "n",
         "rho",
         "temperature",
@@ -41,7 +44,7 @@ fn parse_args() -> Result<Config, String> {
         let key = flag
             .strip_prefix("--")
             .ok_or_else(|| format!("unexpected argument: {flag}"))?;
-        if !KEYS.contains(&key) {
+        if key != "force" && !REQUIRED_KEYS.contains(&key) {
             return Err(format!("unknown option: {flag}"));
         }
         let value = args
@@ -54,7 +57,7 @@ fn parse_args() -> Result<Config, String> {
             return Err(format!("duplicate option: {flag}"));
         }
     }
-    for key in KEYS {
+    for key in REQUIRED_KEYS {
         if !options.contains_key(key) {
             return Err(format!("missing required option: --{key}"));
         }
@@ -87,6 +90,11 @@ fn parse_args() -> Result<Config, String> {
     let seed = options["seed"]
         .parse()
         .map_err(|_| format!("invalid --seed: {}", options["seed"]))?;
+    let force = match options.get("force").map(String::as_str) {
+        None | Some("cells") => ForceMethod::Cells,
+        Some("naive") => ForceMethod::Naive,
+        Some(_) => return Err("--force must be naive or cells".into()),
+    };
     Ok(Config {
         n,
         rho,
@@ -96,6 +104,7 @@ fn parse_args() -> Result<Config, String> {
         steps,
         sample_every,
         seed,
+        force,
         out: PathBuf::from(&options["out"]),
     })
 }
@@ -103,7 +112,7 @@ fn parse_args() -> Result<Config, String> {
 fn run(config: Config) -> Result<(), String> {
     let mut state = FluidState::new(config.n, config.rho, config.temperature, config.seed)?;
     for step in 1..=config.eq_steps {
-        velocity_verlet_step(&mut state, config.dt)?;
+        velocity_verlet_step_with_method(&mut state, config.dt, config.force)?;
         if step % 50 == 0 {
             rescale_to_temperature(&mut state, config.temperature)?;
         }
@@ -135,9 +144,9 @@ fn run(config: Config) -> Result<(), String> {
     let mut stdout = BufWriter::new(std::io::stdout().lock());
     writeln!(stdout, "t\tE_pot\tE_kin").map_err(|e| e.to_string())?;
     for step in 1..=config.steps {
-        velocity_verlet_step(&mut state, config.dt)?;
+        velocity_verlet_step_with_method(&mut state, config.dt, config.force)?;
         if step % config.sample_every == 0 {
-            let frame = SavedFrame::from_state(step, config.dt, &state)?;
+            let frame = SavedFrame::from_state_with_method(step, config.dt, &state, config.force)?;
             write_frame_jsonl(&mut trajectory, &frame)
                 .map_err(|e| format!("cannot write traj.jsonl: {e}"))?;
             writeln!(

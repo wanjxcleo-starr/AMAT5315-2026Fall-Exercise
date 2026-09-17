@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 const CUTOFF: f64 = 2.5;
 
 #[derive(Clone, Copy, Debug)]
@@ -11,6 +13,12 @@ pub struct FluidState {
     pub pos: Vec<[f64; 2]>,
     pub vel: Vec<[f64; 2]>,
     pub box2: Box2,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ForceMethod {
+    Naive,
+    Cells,
 }
 
 pub fn lattice(n: usize, rho: f64) -> Result<FluidState, String> {
@@ -59,35 +67,109 @@ pub fn shifted_pair_energy(r: f64) -> f64 {
     }
 }
 
+fn accumulate_pair(
+    state: &FluidState,
+    i: usize,
+    j: usize,
+    forces: &mut [[f64; 2]],
+    potential: &mut f64,
+) -> Result<(), String> {
+    let dx = minimum_image(state.pos[j][0] - state.pos[i][0], state.box2.lx);
+    let dy = minimum_image(state.pos[j][1] - state.pos[i][1], state.box2.ly);
+    let r2 = dx * dx + dy * dy;
+    if !r2.is_finite() || r2 == 0.0 {
+        return Err("non-finite or overlapping atom positions".into());
+    }
+    if r2 < CUTOFF * CUTOFF {
+        let r = r2.sqrt();
+        *potential += shifted_pair_energy(r);
+        let scale = crate::lennard_jones_radial_force(r) / r;
+        let fx = scale * dx;
+        let fy = scale * dy;
+        forces[i][0] -= fx;
+        forces[i][1] -= fy;
+        forces[j][0] += fx;
+        forces[j][1] += fy;
+    }
+    Ok(())
+}
+
+fn finish_forces(forces: Vec<[f64; 2]>, potential: f64) -> Result<(Vec<[f64; 2]>, f64), String> {
+    if !potential.is_finite() || forces.iter().flatten().any(|x| !x.is_finite()) {
+        return Err("non-finite pair force or energy".into());
+    }
+    Ok((forces, potential))
+}
+
 pub fn forces_and_potential(state: &FluidState) -> Result<(Vec<[f64; 2]>, f64), String> {
     let mut forces = vec![[0.0; 2]; state.pos.len()];
     let mut potential = 0.0;
     for i in 0..state.pos.len() {
         for j in i + 1..state.pos.len() {
-            let dx = minimum_image(state.pos[j][0] - state.pos[i][0], state.box2.lx);
-            let dy = minimum_image(state.pos[j][1] - state.pos[i][1], state.box2.ly);
-            let r2 = dx * dx + dy * dy;
-            if !r2.is_finite() || r2 == 0.0 {
-                return Err("non-finite or overlapping atom positions".into());
-            }
-            if r2 >= CUTOFF * CUTOFF {
-                continue;
-            }
-            let r = r2.sqrt();
-            potential += shifted_pair_energy(r);
-            let scale = crate::lennard_jones_radial_force(r) / r;
-            let fx = scale * dx;
-            let fy = scale * dy;
-            forces[i][0] -= fx;
-            forces[i][1] -= fy;
-            forces[j][0] += fx;
-            forces[j][1] += fy;
+            accumulate_pair(state, i, j, &mut forces, &mut potential)?;
         }
     }
-    if !potential.is_finite() || forces.iter().flatten().any(|x| !x.is_finite()) {
-        return Err("non-finite pair force or energy".into());
+    finish_forces(forces, potential)
+}
+
+pub fn forces_and_potential_cells(state: &FluidState) -> Result<(Vec<[f64; 2]>, f64), String> {
+    let Box2 { lx, ly } = state.box2;
+    if !lx.is_finite() || !ly.is_finite() || lx <= 2.0 * CUTOFF || ly <= 2.0 * CUTOFF {
+        return Err("box lengths must be finite and greater than twice the cutoff".into());
     }
-    Ok((forces, potential))
+    let nx = (lx / CUTOFF).floor() as usize;
+    let ny = (ly / CUTOFF).floor() as usize;
+    let mut cells: HashMap<(usize, usize), Vec<usize>> = HashMap::with_capacity(state.pos.len());
+    let mut atom_cell = Vec::with_capacity(state.pos.len());
+    let width = lx / nx as f64;
+    let height = ly / ny as f64;
+    for (atom, position) in state.pos.iter().enumerate() {
+        if position.iter().any(|value| !value.is_finite()) {
+            return Err("non-finite or overlapping atom positions".into());
+        }
+        let x = ((wrapped(position[0], lx) / width) as usize).min(nx - 1);
+        let y = ((wrapped(position[1], ly) / height) as usize).min(ny - 1);
+        cells.entry((x, y)).or_default().push(atom);
+        atom_cell.push((x, y));
+    }
+
+    let mut forces = vec![[0.0; 2]; state.pos.len()];
+    let mut potential = 0.0;
+    let mut candidates = Vec::new();
+    for (i, &(cx, cy)) in atom_cell.iter().enumerate() {
+        let xs = [
+            if cx == 0 { nx - 1 } else { cx - 1 },
+            cx,
+            if cx + 1 == nx { 0 } else { cx + 1 },
+        ];
+        let ys = [
+            if cy == 0 { ny - 1 } else { cy - 1 },
+            cy,
+            if cy + 1 == ny { 0 } else { cy + 1 },
+        ];
+        let mut neighboring_cells = [(usize::MAX, usize::MAX); 9];
+        let mut neighboring_count = 0;
+        for y in ys {
+            for x in xs {
+                let index = (x, y);
+                if !neighboring_cells[..neighboring_count].contains(&index) {
+                    neighboring_cells[neighboring_count] = index;
+                    neighboring_count += 1;
+                }
+            }
+        }
+        candidates.clear();
+        for &cell in &neighboring_cells[..neighboring_count] {
+            if let Some(atoms) = cells.get(&cell) {
+                candidates.extend(atoms.iter().copied().filter(|&j| j > i));
+            }
+        }
+        candidates.sort_unstable();
+        for &j in &candidates {
+            accumulate_pair(state, i, j, &mut forces, &mut potential)?;
+        }
+    }
+    finish_forces(forces, potential)
 }
 
 struct SplitMix64(u64);
@@ -152,8 +234,22 @@ pub fn rescale_to_temperature(state: &mut FluidState, target: f64) -> Result<(),
     Ok(())
 }
 
-pub fn velocity_verlet_step(state: &mut FluidState, dt: f64) -> Result<(), String> {
-    let (old_forces, _) = forces_and_potential(state)?;
+pub fn forces_and_potential_with_method(
+    state: &FluidState,
+    method: ForceMethod,
+) -> Result<(Vec<[f64; 2]>, f64), String> {
+    match method {
+        ForceMethod::Naive => forces_and_potential(state),
+        ForceMethod::Cells => forces_and_potential_cells(state),
+    }
+}
+
+pub fn velocity_verlet_step_with_method(
+    state: &mut FluidState,
+    dt: f64,
+    method: ForceMethod,
+) -> Result<(), String> {
+    let (old_forces, _) = forces_and_potential_with_method(state, method)?;
     for (atom, force) in old_forces.iter().enumerate() {
         for (axis, length) in [state.box2.lx, state.box2.ly].into_iter().enumerate() {
             state.pos[atom][axis] = wrapped(
@@ -162,7 +258,7 @@ pub fn velocity_verlet_step(state: &mut FluidState, dt: f64) -> Result<(), Strin
             );
         }
     }
-    let (new_forces, _) = forces_and_potential(state)?;
+    let (new_forces, _) = forces_and_potential_with_method(state, method)?;
     for atom in 0..state.pos.len() {
         for axis in 0..2 {
             state.vel[atom][axis] += 0.5 * dt * (old_forces[atom][axis] + new_forces[atom][axis]);
@@ -172,6 +268,10 @@ pub fn velocity_verlet_step(state: &mut FluidState, dt: f64) -> Result<(), Strin
         }
     }
     Ok(())
+}
+
+pub fn velocity_verlet_step(state: &mut FluidState, dt: f64) -> Result<(), String> {
+    velocity_verlet_step_with_method(state, dt, ForceMethod::Naive)
 }
 
 #[cfg(test)]

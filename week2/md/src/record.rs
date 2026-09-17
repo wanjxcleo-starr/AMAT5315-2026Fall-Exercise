@@ -1,6 +1,8 @@
 use std::io::{self, Write};
 
-use crate::fluid::{Box2, FluidState, forces_and_potential, kinetic_energy, wrapped};
+use crate::fluid::{
+    Box2, FluidState, ForceMethod, forces_and_potential_with_method, kinetic_energy, wrapped,
+};
 
 pub struct RunMetadata {
     pub n: usize,
@@ -34,6 +36,15 @@ fn nine_digits(value: f64) -> Result<f64, String> {
 
 impl SavedFrame {
     pub fn from_state(step: usize, dt: f64, state: &FluidState) -> Result<Self, String> {
+        Self::from_state_with_method(step, dt, state, ForceMethod::Naive)
+    }
+
+    pub fn from_state_with_method(
+        step: usize,
+        dt: f64,
+        state: &FluidState,
+        method: ForceMethod,
+    ) -> Result<Self, String> {
         let mut saved = state.clone();
         for point in &mut saved.pos {
             for (axis, length) in [state.box2.lx, state.box2.ly].into_iter().enumerate() {
@@ -46,7 +57,7 @@ impl SavedFrame {
                 *component = nine_digits(*component)?;
             }
         }
-        let e_pot = forces_and_potential(&saved)?.1;
+        let e_pot = forces_and_potential_with_method(&saved, method)?.1;
         let e_kin = kinetic_energy(&saved);
         let t = step as f64 * dt;
         if !t.is_finite() || !e_kin.is_finite() {
@@ -109,7 +120,21 @@ pub fn write_frame_jsonl(writer: &mut impl Write, frame: &SavedFrame) -> io::Res
 #[cfg(test)]
 mod tests {
     use super::{RunMetadata, SavedFrame, write_frame_jsonl, write_run_json};
-    use crate::fluid::{FluidState, forces_and_potential, kinetic_energy};
+    use crate::fluid::{FluidState, ForceMethod, forces_and_potential, kinetic_energy};
+
+    #[test]
+    fn cell_method_records_energy_from_serialized_coordinates() {
+        let state = FluidState::new(100, 0.8, 0.5, 2026).unwrap();
+        let frame =
+            SavedFrame::from_state_with_method(50, 0.01, &state, ForceMethod::Cells).unwrap();
+        let saved = FluidState {
+            pos: frame.pos,
+            vel: frame.vel,
+            box2: state.box2,
+        };
+        assert_eq!(frame.e_pot, forces_and_potential(&saved).unwrap().1);
+        assert_eq!(frame.e_kin, kinetic_energy(&saved));
+    }
 
     #[test]
     fn recorded_energy_uses_nine_digit_saved_coordinates_and_velocities() {

@@ -31,6 +31,11 @@ sample-every = "save production steps divisible by this value; not step zero"
 seed = "random seed"
 out = "output folder: artifacts for the gate's run, elsewhere for other runs"
 
+[md.force]
+usage = "md --n 100 --rho 0.8 --temperature 0.5 --dt 0.01 --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 --force naive --out /tmp/naive"
+choices = "naive or cells; cells is the default, naive stays for comparison"
+physics = "both methods compute the same forces and potential energy"
+
 [md.encoding]
 precision = "positions and velocities with 9 significant digits"
 state = "the integration state stays at full precision"

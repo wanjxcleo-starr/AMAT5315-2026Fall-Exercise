@@ -122,3 +122,42 @@ fn short_run_records_only_sampled_production_frames() {
     }
     fs::remove_dir_all(out).unwrap();
 }
+
+#[test]
+fn force_flags_run_the_same_short_trajectory_as_the_default() {
+    let binary = env!("CARGO_BIN_EXE_md");
+    let mut trajectories = Vec::new();
+    for method in [None, Some("naive"), Some("cells")] {
+        let out = output_dir(method.unwrap_or("default-force"));
+        let mut args = flags(&out);
+        if let Some(method) = method {
+            args.extend(["--force".to_string(), method.to_string()]);
+        }
+        let result = Command::new(binary).args(args).output().unwrap();
+        assert!(
+            result.status.success(),
+            "method={method:?}: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(result.stderr.is_empty());
+        trajectories.push(fs::read_to_string(out.join("traj.jsonl")).unwrap());
+        fs::remove_dir_all(out).unwrap();
+    }
+    assert_eq!(trajectories[0], trajectories[1]);
+    assert_eq!(trajectories[0], trajectories[2]);
+}
+
+#[test]
+fn invalid_force_choice_is_a_usage_error() {
+    let out = output_dir("invalid-force");
+    let mut args = flags(&out);
+    args.extend(["--force".to_string(), "octree".to_string()]);
+    let result = Command::new(env!("CARGO_BIN_EXE_md"))
+        .args(args)
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(2));
+    assert!(result.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("--force"));
+    assert!(!out.exists());
+}
