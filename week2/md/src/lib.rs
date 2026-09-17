@@ -1,3 +1,5 @@
+pub mod dimer;
+
 pub fn greeting() -> &'static str {
     "Hello, world!"
 }

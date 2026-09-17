@@ -41,11 +41,13 @@ The Rust example `week2/md/examples/dimer.rs` runs all three simulations and
 directly creates `week2/dimer.png` when invoked from `week2/` with
 `cargo run --manifest-path md/Cargo.toml --example dimer`. It passes the
 observations to a Week 2 Python plotting script, following the existing
-`field_data`/`plot_field.py` pattern. The left panel shows the signed Euler
-error through step 500. The right panel shows the **complete** 5000-step
-signed Verlet error multiplied by 1000, with the 500-step maximum absolute
-error annotated. The script requires Matplotlib. An optional output path
-allows a temporary-image smoke test without creating the final image.
+`field_data`/`plot_field.py` pattern. The left panel shows both signed Euler
+and signed velocity-Verlet errors through step 500, with a legend and the
+title “Euler vs velocity-Verlet · 500 steps”. The right panel shows the
+**complete** 5000-step signed Verlet error multiplied by 1000, with the
+500-step maximum absolute error annotated. The script requires Matplotlib.
+An optional output path allows a temporary-image smoke test without creating
+the final image.
 
 The final `dimer.png` will be generated, inspected, and committed by the
 student. Codex may commit the implementation, tests, design, and plan but

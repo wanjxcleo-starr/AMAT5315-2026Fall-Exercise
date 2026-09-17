@@ -18,7 +18,7 @@
 - Run Euler 500, Verlet 500, and a fresh Verlet 5000 steps. Record step 0 and every step.
 - Record signed `delta_n = (E_n - E_0) / |E_0|`. Take absolute values only to calculate maximum Verlet error.
 - Require `max |delta_n| < 1e-3` for Verlet 500 and `delta_500 > 0.5` for Euler 500. Inspect the full Verlet 5000 trace for bounded oscillation and no sustained drift; impose no `1e-3` bound on that long run.
-- `cargo run --manifest-path md/Cargo.toml --example dimer` from `week2/` must directly generate `week2/dimer.png`. The right panel shows all 5000 Verlet steps with signed error multiplied by 1000.
+- `cargo run --manifest-path md/Cargo.toml --example dimer` from `week2/` must directly generate `week2/dimer.png`. The left panel compares both signed 500-step errors with a legend and the title “Euler vs velocity-Verlet · 500 steps”; the right panel shows all 5000 Verlet steps with signed error multiplied by 1000.
 - Do not run the default image command or commit `dimer.png`; the student will generate, inspect, and commit it. Do not push.
 
 ## File map
@@ -55,9 +55,9 @@
 
 **Interfaces:** `cargo run --manifest-path md/Cargo.toml --example dimer` from `week2/` writes `week2/dimer.png`; `-- /tmp/name.png` overrides the output for smoke testing. The example writes CSV with `run,step,time,relative_error` to the plotting script's standard input. The script accepts the output path as its sole argument.
 
-- [ ] **Write failing Python renderer test** in `week2/test_plot_dimer.py`. Feed controlled CSV rows for `euler_500`, `verlet_500`, and `verlet_5000`; run the real script with a temporary output path and assert that a nonempty PNG signature is written. Add malformed/missing-series input that must fail without leaving a PNG.
+- [ ] **Write failing Python renderer tests** in `week2/test_plot_dimer.py`. Feed controlled CSV rows for `euler_500`, `verlet_500`, and `verlet_5000`; run the real script with a temporary output path and assert that a nonempty PNG signature is written. Add malformed/missing-series input that must fail without leaving a PNG. Inspect the real figure object to assert that the left panel has both signed series, the legend, and the exact comparison title, while the right panel retains the full signed series scaled by 1000.
 - [ ] **Verify red:** run `python3 -m unittest week2/test_plot_dimer.py` in an environment with Matplotlib; failure must identify the missing script or output behavior.
-- [ ] **Implement the renderer:** parse and validate the CSV; plot Euler's signed 500-step error in the left panel; plot every signed 5000-step Verlet error times 1000 in the right panel; label axes and annotate the 500-step Verlet maximum absolute error; save at the requested output path with the Agg backend.
+- [ ] **Implement the renderer:** parse and validate the CSV; plot both signed 500-step errors in the left panel with a legend and the title “Euler vs velocity-Verlet · 500 steps”; plot every signed 5000-step Verlet error times 1000 in the right panel; label axes and annotate the 500-step Verlet maximum absolute error; save at the requested output path with the Agg backend.
 - [ ] **Verify green:** rerun the Python tests. Keep their output in temporary directories.
 - [ ] **Write a failing example integration check** that runs `cargo run --manifest-path md/Cargo.toml --example dimer -- /tmp/<temporary>/dimer.png` from `week2/` and checks the PNG exists; it must fail while the example is absent.
 - [ ] **Implement the example:** call the shared runner for 500/500/5000 steps, pipe CSV rows to `python3 week2/plot_dimer.py <output>` using `CARGO_MANIFEST_DIR` to locate the script, check the child exit status, and print the two 500-step acceptance values. Do not silently swallow Python or file errors.
