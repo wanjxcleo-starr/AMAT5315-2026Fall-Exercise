@@ -146,3 +146,60 @@ separate output paths for pairs 1–3, was:
 ```sh
 samply record --rate 750 --save-only --output /tmp/amat5315-week2-paired-profiles-1ROipz/cells-2.json.gz md --n 400 --rho 0.8 --temperature 0.5 --dt 0.01 --eq-steps 200 --steps 1000 --sample-every 50 --seed 2026 --force cells --out /tmp/amat5315-week2-paired-profiles-1ROipz/cells-2 > /tmp/amat5315-week2-paired-profiles-1ROipz/cells-2.stdout
 ```
+
+## Benchmark
+
+On 2026-09-18, the release binary `md/target/release/md` (SHA-256
+`7f1558d300dba7ba09483e14195d78bcf5fc41365c0c55ff34c8ed55b6581ef2`)
+ran on the WSL2 machine described above. A release build was checked before
+timing; compilation and installation were excluded. Each wall time came from
+`time.perf_counter_ns()` immediately around one sequential `md` subprocess.
+For each N and repetition, naive and cells ran next to each other; their order
+was reversed in the middle repetition. Every run used its own output folder
+under `/tmp/amat5315-week2-scaling.cfdWV4/`, with no profiling or ramp. The
+commands had this form, with N = 100, 400, or 1600; repetition = 1, 2, or 3;
+and force = naive or cells:
+
+```sh
+BASE=/tmp/amat5315-week2-scaling.cfdWV4
+./md/target/release/md --n "$n" --rho 0.8 --temperature 0.5 --dt 0.01 --eq-steps 100 --steps 500 --sample-every 50 --seed 2026 --force "$force" --out "$BASE/n${n}-r${repetition}-${force}"
+```
+
+Raw wall times, in seconds, are below. The JSONL measurement log and all 18
+generated runs remain in the `/tmp` folder; each run produced the expected ten
+saved frames. Naive and cells trajectories were byte-identical in all nine
+matched pairs.
+
+| N | Repetition | Naive (s) | Cells (s) |
+| ---: | ---: | ---: | ---: |
+| 100 | 1 | 0.160253 | 0.208762 |
+| 100 | 2 | 0.173535 | 0.206605 |
+| 100 | 3 | 0.165563 | 0.223114 |
+| 400 | 1 | 3.866570 | 0.808738 |
+| 400 | 2 | 2.472577 | 0.852067 |
+| 400 | 3 | 2.524566 | 0.893196 |
+| 1600 | 1 | 36.164243 | 3.153881 |
+| 1600 | 2 | 35.581781 | 3.390734 |
+| 1600 | 3 | 36.740791 | 3.314179 |
+
+Each time below is the median of three wall times, followed by their minimum
+and maximum. Speedup is naive median divided by cells median; its range gives
+the smallest and largest naive/cells ratio within the three matched pairs.
+
+| N | Naive: median [range] (s) | Cells: median [range] (s) | Speedup: ratio of medians [paired range] |
+| ---: | ---: | ---: | ---: |
+| 100 | 0.165563 [0.160253–0.173535] | 0.208762 [0.206605–0.223114] | 0.793× [0.742–0.840×] |
+| 400 | 2.524566 [2.472577–3.866570] | 0.852067 [0.808738–0.893196] | 2.963× [2.826–4.781×] |
+| 1600 | 36.164243 [35.581781–36.740791] | 3.314179 [3.153881–3.390734] | 10.912× [10.494–11.467×] |
+
+[scaling.png](scaling.png) plots each median wall time divided by all 600
+integration steps (100 equilibration + 500 production), with min–max bars.
+The naive seconds/step are 0.000275938, 0.004207609, and 0.060273738;
+the cells values are 0.000347936, 0.001420112, and 0.005523632 at N =
+100, 400, and 1600, respectively. The speedup rises with N and exceeds 2
+at N = 1600. At fixed density, naive searches all N(N−1)/2 atom pairs while
+the cell list searches nearby bins, so its cost grows more slowly; cell-list
+setup outweighs that benefit at N = 100. These wall times include process
+startup and trajectory writing, so the short N = 100 runs are especially
+sensitive to overhead. The first N = 400 naive run was slower than its later
+repetitions; its full range is retained rather than adjusted.
