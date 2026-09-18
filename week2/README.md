@@ -203,3 +203,84 @@ setup outweighs that benefit at N = 100. These wall times include process
 startup and trajectory writing, so the short N = 100 runs are especially
 sensitive to overhead. The first N = 400 naive run was slower than its later
 repetitions; its full range is retained rather than adjusted.
+
+## Heating, cold, and hot
+
+The following commands ran from `week2/` using the installed release `md`,
+which matched `md/target/release/md` byte for byte (SHA-256
+`7f1558d300dba7ba09483e14195d78bcf5fc41365c0c55ff34c8ed55b6581ef2`).
+The fixed-temperature trajectories and stdout logs remain only in
+`/tmp/amat5315-week2-verify5.a9tcve/`; the formal ramp output is in
+`heating/`. The video commands used Matplotlib 3.11.2 from
+`/tmp/amat5315-week2-plot/bin/python` and FFmpeg 7.0.2 bundled with that
+environment's `imageio_ffmpeg`, exposed as `ffmpeg` in the temporary `bin/`
+directory. No system FFmpeg installation was needed.
+
+```sh
+md --n 400 --rho 0.8 --temperature 0.2 --ramp-to 1.2 --dt 0.01 --eq-steps 2000 --steps 20000 --sample-every 100 --seed 2026 --out heating > /tmp/amat5315-week2-verify5.a9tcve/heating.stdout
+md --n 100 --rho 0.8 --temperature 0.2 --dt 0.01 --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 --out /tmp/amat5315-week2-verify5.a9tcve/cold > /tmp/amat5315-week2-verify5.a9tcve/cold.stdout
+md --n 100 --rho 0.8 --temperature 1.0 --dt 0.01 --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 --out /tmp/amat5315-week2-verify5.a9tcve/hot > /tmp/amat5315-week2-verify5.a9tcve/hot.stdout
+PATH=/tmp/amat5315-week2-verify5.a9tcve/bin:$PATH MPLCONFIGDIR=/tmp/amat5315-week2-verify5.a9tcve/mplconfig /tmp/amat5315-week2-plot/bin/python scripts/video.py /tmp/amat5315-week2-verify5.a9tcve/cold cold.mp4
+PATH=/tmp/amat5315-week2-verify5.a9tcve/bin:$PATH MPLCONFIGDIR=/tmp/amat5315-week2-verify5.a9tcve/mplconfig /tmp/amat5315-week2-plot/bin/python scripts/video.py /tmp/amat5315-week2-verify5.a9tcve/hot hot.mp4
+```
+
+The ramp metadata records N = 400, target 0.2 to 1.2, 2000 equilibration
+steps, 20000 production steps, and a frame every 100 production steps.
+`heating/traj.jsonl` contains exactly 200 frames, from steps 100 through
+20000. Recomputing the thermostat temperature as
+`sum(v_x² + v_y²)/(2N−2)` from each saved velocity array gives 0.205000000
+at the first saved step and 1.1999999999 at the last; the target values at
+those steps are 0.205 and 1.2. All 200 measured temperatures increase, and
+the largest absolute difference from the linear target is 5.45e-10. Step zero
+is not saved, so the first visible temperature is 0.205 rather than 0.2.
+
+The following structure values were recomputed from saved positions using
+minimum-image pair distances, radial bins about 0.1 wide, and annular-area
+normalization. For long-range contrast, the root-mean-square of `g(r)−1` over
+2.5 ≤ r ≤ 5.0 falls from 0.629 in the ramp's first 20 frames to 0.123 in its
+last 20; the largest peak in that interval falls from 2.48 to 1.19. In the
+two fixed-temperature runs, the same contrast over all 200 frames is 0.538
+(cold) versus 0.140 (hot); the first-shell peak is 4.43 versus 2.88. The
+videos' decoded first and last frames show two panels with
+atoms and a running `g(r)`, plus the production time and frame number. Cold
+keeps lattice-like positions and distinct peaks out to r ≈ 5; hot has a first
+shell and weaker longer-range structure. Comparing the six nearest-neighbour
+identities per atom between the first and last saved frames, cold retains
+99.8% and hot retains 4.3%, consistent with vibration versus neighbour
+exchange. The hot `g(r)` fluctuates around 1 beyond the first shell; finite
+system size and finite sampling keep it from being exactly flat.
+
+FFmpeg independently decoded 200 video frames from each MP4 at 20 fps,
+lasting 10 seconds with no reported dropped frames. The evidence sizes are:
+
+| Evidence file | Size (bytes) |
+| --- | ---: |
+| `heating/run.json` | 280 |
+| `heating/traj.jsonl` | 4,715,545 |
+| `cold.mp4` | 627,020 |
+| `hot.mp4` | 691,595 |
+
+Each is below 5,000,000 bytes; the trajectory retains the specified nine
+significant digits. The public course viewer needs the committed trajectory
+at a GitHub raw URL. It has **not** been verified publicly because this work
+has not been pushed.
+
+### Evidence generation index
+
+The generating commands below run from `week2/` unless noted. Browser
+screenshots and exports are identified as manual steps.
+
+| Week 2 evidence | Generator or inspection step |
+| --- | --- |
+| `force-comparison.txt` | `cargo run --manifest-path md/Cargo.toml --example force_comparison > force-comparison.txt` |
+| `field.png` | `python3 plot_field.py` (calls Rust `field_data` example) |
+| `dimer.png` | `cargo run --manifest-path md/Cargo.toml --example dimer` |
+| `check.txt` | `make reproduce`, then `python3 scripts/check.py artifacts > check.txt` |
+| `fluid.mp4` | `python3 scripts/video.py artifacts fluid.mp4` |
+| `fluid-viewer.png` | Manual Save PNG export from the course viewer after loading the fluid run |
+| `force-paths.txt` | `cargo test --manifest-path md/Cargo.toml --test force_paths -- --nocapture --test-threads=1`; report includes its printed values |
+| `profile-naive.png` | Firefox Profiler Call Tree screenshot from the naive `samply record` command in Profile above |
+| `profile-cells.png` | Firefox Profiler Call Tree screenshot after `samply load /tmp/amat5315-week2-paired-profiles-1ROipz/cells-2.json.gz` |
+| `scaling.png` | `MPLCONFIGDIR=/tmp/amat5315-week2-scaling.cfdWV4/mplconfig /tmp/amat5315-week2-plot/bin/python /tmp/amat5315-week2-scaling.cfdWV4/plot.py`, using the raw times in Benchmark |
+| `heating/run.json`, `heating/traj.jsonl` | N = 400 ramp `md` command above |
+| `cold.mp4`, `hot.mp4` | Fixed-temperature `md` and `scripts/video.py` commands above |
