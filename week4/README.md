@@ -1,6 +1,6 @@
-# Week 4 Part 1: spectral flow solver
+# Week 4: spectral flow
 
-This Rust crate implements the Part 1 solver on `[0,2π)²`. `field` writes Taylor–Green or seeded random velocity fields; `fluid` integrates their vorticity with Euler, explicit-midpoint RK2, or classical RK4. Parts 2 onward, the Extension, and the Challenge are not included.
+This Rust crate implements the Part 1 solver on `[0,2π)²`. `field` writes Taylor–Green or seeded random velocity fields; `fluid` integrates their vorticity with Euler, explicit-midpoint RK2, or classical RK4. The Part 2 random recording and reduced viewer copy are prepared, but viewer verification is not complete. Parts 3 onward, the Extension, and the Challenge are not included.
 
 `N` is a power of two and arrays use index `iy*N + ix`. The two-dimensional inverse FFT is normalized once by `1/N²`. First derivatives zero the even-grid Nyquist line to preserve real-field symmetry. The Poisson solve sets `ψ̂(0)=0`; velocity recovery separately sets `û(0)=v̂(0)=0`. The rectangular two-thirds mask is applied to the initial vorticity, every integrator stage, and the transformed nonlinear term. Each stage recovers its own velocity.
 
@@ -31,3 +31,11 @@ field taylor-green --n 64 \
 ```
 
 This writes `run.json` and `fields.jsonl` under the ignored `artifacts/taylor-green/` directory. The user-run Part 1 VERIFY completed with exit code 0: `evidence/taylor-green.txt` ends at `t=1`, `E=0.167580011509`, and `Z=0.335160023018`. The saved `evidence/viewer-taylor-green.png` shows `t=1.000`, frame 10/10 on the `N=64` grid, and the expected periodic four-cell alternating-vorticity pattern.
+
+## Part 2 viewer copy
+
+```sh
+python3 scripts/viewer_copy.py
+```
+
+The script samples the existing `N=128` random recording at every second point in both directions; it does not run another simulation. The generated `fields.jsonl` has 101 frames with 4096 vorticity values per frame and is 3,884,872 bytes. Viewer verification remains pending.
