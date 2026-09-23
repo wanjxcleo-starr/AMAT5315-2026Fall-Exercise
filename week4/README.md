@@ -1,6 +1,6 @@
 # Week 4: spectral flow
 
-This Rust crate implements the Part 1 solver on `[0,2π)²`. `field` writes Taylor–Green or seeded random velocity fields; `fluid` integrates their vorticity with Euler, explicit-midpoint RK2, or classical RK4. The Part 2 random recording and reduced viewer copy are prepared, but viewer verification is not complete. Parts 3 onward, the Extension, and the Challenge are not included.
+This Rust crate implements the Part 1 solver on `[0,2π)²`. `field` writes Taylor–Green or seeded random velocity fields; `fluid` integrates their vorticity with Euler, explicit-midpoint RK2, or classical RK4. The Part 2 random recording, reduced viewer copy, and local viewer check are complete; public viewer verification awaits a push. Parts 3 onward, the Extension, and the Challenge are not included.
 
 `N` is a power of two and arrays use index `iy*N + ix`. The two-dimensional inverse FFT is normalized once by `1/N²`. First derivatives zero the even-grid Nyquist line to preserve real-field symmetry. The Poisson solve sets `ψ̂(0)=0`; velocity recovery separately sets `û(0)=v̂(0)=0`. The rectangular two-thirds mask is applied to the initial vorticity, every integrator stage, and the transformed nonlinear term. Each stage recovers its own velocity.
 
@@ -38,4 +38,4 @@ This writes `run.json` and `fields.jsonl` under the ignored `artifacts/taylor-gr
 python3 scripts/viewer_copy.py
 ```
 
-The script samples the existing `N=128` random recording at every second point in both directions; it does not run another simulation. The generated `fields.jsonl` has 101 frames with 4096 vorticity values per frame and is 3,884,872 bytes. Viewer verification remains pending.
+The script samples the existing `N=128` random recording at every second point in both directions; it does not run another simulation. The generated `fields.jsonl` has 101 frames with 4096 vorticity values per frame and is 3,884,872 bytes. Local viewer frames at `t=0,2,5,10` show small vortices evolving and merging into fewer, larger structures while enstrophy falls. Public viewer verification remains pending because the recording has not been pushed.
