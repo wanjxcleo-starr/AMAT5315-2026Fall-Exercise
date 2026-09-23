@@ -30,4 +30,4 @@ field taylor-green --n 64 \
   | tee evidence/taylor-green.txt
 ```
 
-This writes `run.json` and `fields.jsonl` under the ignored `artifacts/taylor-green/` directory. The course-viewer inspection and saved PNG remain a separate, user-run VERIFY step.
+This writes `run.json` and `fields.jsonl` under the ignored `artifacts/taylor-green/` directory. The user-run Part 1 VERIFY completed with exit code 0: `evidence/taylor-green.txt` ends at `t=1`, `E=0.167580011509`, and `Z=0.335160023018`. The saved `evidence/viewer-taylor-green.png` shows `t=1.000`, frame 10/10 on the `N=64` grid, and the expected periodic four-cell alternating-vorticity pattern.
