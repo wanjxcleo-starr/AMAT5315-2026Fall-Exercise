@@ -29,6 +29,45 @@ impl SpectralGrid {
         self.derivative(values, false)
     }
 
+    pub fn second_derivative_x(&self, values: &[f64]) -> Result<Vec<f64>, String> {
+        let mut spectrum = self.forward_real(values)?;
+        for iy in 0..self.n {
+            for ix in 0..self.n {
+                let kx = self.wave_number(ix);
+                spectrum[iy * self.n + ix] *= -kx * kx;
+            }
+        }
+        Ok(self.inverse_real(&spectrum))
+    }
+
+    pub fn mixed_derivative_xy(&self, values: &[f64]) -> Result<Vec<f64>, String> {
+        let mut spectrum = self.forward_real(values)?;
+        for iy in 0..self.n {
+            let ky = self.wave_number(iy);
+            for ix in 0..self.n {
+                let index = iy * self.n + ix;
+                spectrum[index] = if ix == self.n / 2 || iy == self.n / 2 {
+                    Complex64::ZERO
+                } else {
+                    spectrum[index] * (-self.wave_number(ix) * ky)
+                };
+            }
+        }
+        Ok(self.inverse_real(&spectrum))
+    }
+
+    pub fn laplacian(&self, values: &[f64]) -> Result<Vec<f64>, String> {
+        let mut spectrum = self.forward_real(values)?;
+        for iy in 0..self.n {
+            let ky = self.wave_number(iy);
+            for ix in 0..self.n {
+                let kx = self.wave_number(ix);
+                spectrum[iy * self.n + ix] *= -(kx * kx + ky * ky);
+            }
+        }
+        Ok(self.inverse_real(&spectrum))
+    }
+
     pub fn divergence(&self, u: &[f64], v: &[f64]) -> Result<Vec<f64>, String> {
         let du_dx = self.derivative_x(u)?;
         let dv_dy = self.derivative_y(v)?;

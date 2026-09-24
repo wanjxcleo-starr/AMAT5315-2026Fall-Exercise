@@ -1,0 +1,72 @@
+{
+  "case": "random",
+  "n": 128,
+  "nu": 0.004,
+  "t_end": 2.0,
+  "method": "rk4",
+  "seed": 2026,
+  "k_band": [
+    2,
+    6
+  ],
+  "reference_dt": 0.0025,
+  "runs": [
+    {
+      "dt": 0.02,
+      "relative_omega_error": 8.946387355018879e-05,
+      "fields": "artifacts/convergence/rk4-dt0.02/fields.jsonl",
+      "reused": false
+    },
+    {
+      "dt": 0.0125,
+      "relative_omega_error": 1.3304597805280127e-05,
+      "fields": "artifacts/convergence/rk4-dt0.0125/fields.jsonl",
+      "reused": false
+    },
+    {
+      "dt": 0.01,
+      "relative_omega_error": 5.393606659663297e-06,
+      "fields": "artifacts/random/fields.jsonl",
+      "reused": true
+    }
+  ],
+  "slope": 4.052403176821082,
+  "richardson": {
+    "coarse_dt": 0.02,
+    "fine_dt": 0.01,
+    "order": 4,
+    "estimated_fine_error": 5.623882665337535e-06,
+    "tolerance": 5e-06,
+    "predictions": {
+      "0.02": 8.998212264540056e-05,
+      "0.0125": 1.3730182288421715e-05,
+      "0.01": 5.623882665337535e-06
+    },
+    "chosen_dt": null,
+    "chosen_measured_error": null
+  },
+  "supplemental_experiment": {
+    "label": "原候选全部未达标后的补充实验",
+    "dt": 0.008,
+    "predicted_error": 2.303542339722255e-06,
+    "measured_error": 2.1849485802803036e-06,
+    "tolerance": 5e-06,
+    "predicted_below_tolerance": true,
+    "measured_below_tolerance": true,
+    "both_below_tolerance": true,
+    "fields": "artifacts/convergence/rk4-dt0.008/fields.jsonl",
+    "not_a_global_maximum_claim": true,
+    "n": 128,
+    "nu": 0.004,
+    "t_end": 2.0,
+    "method": "rk4",
+    "seed": 2026,
+    "k_band": [
+      2,
+      6
+    ],
+    "reference_dt": 0.0025,
+    "prediction_base_dt": 0.01,
+    "prediction_order": 4
+  }
+}

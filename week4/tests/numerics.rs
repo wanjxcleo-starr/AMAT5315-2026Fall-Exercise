@@ -1,4 +1,4 @@
-use spectral_fluid::{FlowSolver, Method, SpectralGrid, kinetic_energy};
+use spectral_fluid::{FlowSolver, Method, SpectralGrid, add_vorticity_ripple, kinetic_energy};
 use std::f64::consts::TAU;
 
 #[test]
@@ -21,6 +21,55 @@ fn spectral_derivative_of_sin_3x_is_3cos_3x() {
         .fold(0.0_f64, f64::max);
 
     assert!(max_error < 1.0e-12, "max error was {max_error:e}");
+}
+
+#[test]
+fn all_fourier_derivatives_match_the_two_dimensional_comparison_wave() {
+    let n = 32;
+    let grid = SpectralGrid::new(n).unwrap();
+    let values: Vec<f64> = (0..n)
+        .flat_map(|iy| {
+            (0..n).map(move |ix| {
+                let x = TAU * ix as f64 / n as f64;
+                let y = TAU * iy as f64 / n as f64;
+                (3.0 * x).sin() * (2.0 * y).cos()
+            })
+        })
+        .collect();
+
+    let derivatives = [
+        grid.derivative_x(&values).unwrap(),
+        grid.second_derivative_x(&values).unwrap(),
+        grid.mixed_derivative_xy(&values).unwrap(),
+        grid.laplacian(&values).unwrap(),
+    ];
+    let maximum_errors: Vec<f64> = derivatives
+        .iter()
+        .enumerate()
+        .map(|(derivative_index, actual)| {
+            actual
+                .iter()
+                .enumerate()
+                .map(|(index, &value)| {
+                    let x = TAU * (index % n) as f64 / n as f64;
+                    let y = TAU * (index / n) as f64 / n as f64;
+                    let g = (3.0 * x).sin() * (2.0 * y).cos();
+                    let expected = match derivative_index {
+                        0 => 3.0 * (3.0 * x).cos() * (2.0 * y).cos(),
+                        1 => -9.0 * g,
+                        2 => -6.0 * (3.0 * x).cos() * (2.0 * y).sin(),
+                        3 => -13.0 * g,
+                        _ => unreachable!(),
+                    };
+                    (value - expected).abs()
+                })
+                .fold(0.0, f64::max)
+        })
+        .collect();
+
+    for error in maximum_errors {
+        assert!(error < 1.0e-10, "maximum Fourier error was {error:e}");
+    }
 }
 
 #[test]
@@ -89,6 +138,42 @@ fn rk4_taylor_green_energy_and_divergence_match_exact_solution() {
     assert!(
         max_divergence < 1.0e-10,
         "maximum divergence was {max_divergence:e}"
+    );
+}
+
+#[test]
+fn vorticity_ripple_uses_the_largest_velocity_component_as_its_scale() {
+    let n = 32;
+    let mut u = Vec::with_capacity(n * n);
+    let mut v = Vec::with_capacity(n * n);
+    for iy in 0..n {
+        let y = TAU * iy as f64 / n as f64;
+        for ix in 0..n {
+            let x = TAU * ix as f64 / n as f64;
+            u.push(x.cos() * y.sin());
+            v.push(-x.sin() * y.cos());
+        }
+    }
+    let (perturbed_u, perturbed_v) = add_vorticity_ripple(n, &u, &v, -7.0e-5, 3, 4).unwrap();
+    let grid = SpectralGrid::new(n).unwrap();
+    let original_dv_dx = grid.derivative_x(&v).unwrap();
+    let original_du_dy = grid.derivative_y(&u).unwrap();
+    let perturbed_dv_dx = grid.derivative_x(&perturbed_v).unwrap();
+    let perturbed_du_dy = grid.derivative_y(&perturbed_u).unwrap();
+    let maximum_error = (0..n * n)
+        .map(|index| {
+            let x = TAU * (index % n) as f64 / n as f64;
+            let y = TAU * (index / n) as f64 / n as f64;
+            let original_omega = original_dv_dx[index] - original_du_dy[index];
+            let perturbed_omega = perturbed_dv_dx[index] - perturbed_du_dy[index];
+            let expected_change = -7.0e-5 * (3.0 * x).cos() * (4.0 * y).cos();
+            (perturbed_omega - original_omega - expected_change).abs()
+        })
+        .fold(0.0, f64::max);
+
+    assert!(
+        maximum_error < 1.0e-12,
+        "maximum error was {maximum_error:e}"
     );
 }
 

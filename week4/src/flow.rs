@@ -1,4 +1,4 @@
-use crate::SpectralGrid;
+use crate::{Euler, ExplicitMidpoint, Integrator, Rk4, SpectralGrid};
 use rustfft::num_complex::Complex64;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,39 +45,12 @@ impl FlowSolver {
     }
 
     pub fn step(&mut self, method: Method, dt: f64) -> Result<(), String> {
-        if !dt.is_finite() || dt <= 0.0 {
-            return Err("dt must be finite and greater than zero".into());
-        }
         let initial = self.omega.clone();
+        let mut rate = |state: &[Complex64]| self.rhs(state);
         self.omega = match method {
-            Method::Euler => {
-                let k1 = self.rhs(&initial)?;
-                self.combination(&initial, &[(dt, &k1)])
-            }
-            Method::MidpointRk2 => {
-                let k1 = self.rhs(&initial)?;
-                let midpoint = self.combination(&initial, &[(0.5 * dt, &k1)]);
-                let k2 = self.rhs(&midpoint)?;
-                self.combination(&initial, &[(dt, &k2)])
-            }
-            Method::Rk4 => {
-                let k1 = self.rhs(&initial)?;
-                let stage2 = self.combination(&initial, &[(0.5 * dt, &k1)]);
-                let k2 = self.rhs(&stage2)?;
-                let stage3 = self.combination(&initial, &[(0.5 * dt, &k2)]);
-                let k3 = self.rhs(&stage3)?;
-                let stage4 = self.combination(&initial, &[(dt, &k3)]);
-                let k4 = self.rhs(&stage4)?;
-                self.combination(
-                    &initial,
-                    &[
-                        (dt / 6.0, &k1),
-                        (dt / 3.0, &k2),
-                        (dt / 3.0, &k3),
-                        (dt / 6.0, &k4),
-                    ],
-                )
-            }
+            Method::Euler => Euler.step(&initial, dt, &mut rate)?,
+            Method::MidpointRk2 => ExplicitMidpoint.step(&initial, dt, &mut rate)?,
+            Method::Rk4 => Rk4.step(&initial, dt, &mut rate)?,
         };
         Ok(())
     }
@@ -113,18 +86,6 @@ impl FlowSolver {
         }
         rhs[0] = Complex64::ZERO;
         Ok(rhs)
-    }
-
-    fn combination(&self, base: &[Complex64], terms: &[(f64, &[Complex64])]) -> Vec<Complex64> {
-        let mut result = base.to_vec();
-        for &(factor, values) in terms {
-            for (target, &value) in result.iter_mut().zip(values) {
-                *target += factor * value;
-            }
-        }
-        self.grid.filter_two_thirds(&mut result);
-        result[0] = Complex64::ZERO;
-        result
     }
 }
 

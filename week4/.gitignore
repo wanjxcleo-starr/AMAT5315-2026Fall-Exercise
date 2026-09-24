@@ -1,2 +1,5 @@
 /target/
 /artifacts/
+/.venv/
+__pycache__/
+*.py[cod]

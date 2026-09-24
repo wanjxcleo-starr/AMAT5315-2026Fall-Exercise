@@ -15,3 +15,15 @@ path = "src/bin/field.rs"
 [[bin]]
 name = "fluid"
 path = "src/bin/fluid.rs"
+
+[[bin]]
+name = "line-study"
+path = "src/bin/line_study.rs"
+
+[[bin]]
+name = "part2-study"
+path = "src/bin/part2_study.rs"
+
+[[bin]]
+name = "perturb-field"
+path = "src/bin/perturb_field.rs"
