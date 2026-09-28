@@ -32,7 +32,7 @@ python -m unittest discover -s scripts -p 'test_*.py'
 
 The current run passes all 31 Rust tests and all 18 Python tests. These include the shared integrator stability polynomials, all three methods against an exact Fourier wave, the Nyquist rule, both line derivative implementations, the Part 1 study contract, the Part 2 derivative comparison, the prescribed Part 3 perturbation, the Part 4 error calculations, and all existing two-dimensional regression tests.
 
-## Current Part 1: integrators on a line
+## Part 1: integrators on a line
 
 With the environment active, run from `week4/`:
 
@@ -41,14 +41,13 @@ python -m unittest scripts/test_part1.py
 python scripts/part1.py
 ```
 
-The script obtains all numerical data from the Rust library through `line-study` and writes `evidence/line-stability.png` and `evidence/line-accuracy.png`. The measured RK4 growth boundary agrees with its stability polynomial; the `dt=0.045` pulse remains stable while `dt=0.056` develops the shortest-wave instability. The one-lap maximum errors are `1.800745e-05` for RK4 with Fourier derivatives, `3.098969e-01` for RK4 with centred differences, and `2.098856e-01` for Euler with Fourier derivatives. Fitted slopes are `1.032742` (Euler), `2.005486` (midpoint), `4.003969` (RK4), and `2.002533` (equal-weight RK4), all within 15% of their required values. The student has manually checked both figures and confirmed the stability contrast, exact-solution comparison, and order plot.
+The script obtains all numerical data from the Rust library through `line-study` and writes `evidence/line-stability.png` and `evidence/line-accuracy.png`. The measured RK4 growth boundary agrees with its stability polynomial; the `dt=0.045` pulse remains stable while `dt=0.056` develops the shortest-wave instability. The one-lap maximum errors are `1.800745e-05` for RK4 with Fourier derivatives, `3.098969e-01` for RK4 with centred differences, and `2.098856e-01` for Euler with Fourier derivatives. Fitted slopes are `1.032742` (Euler), `2.005486` (midpoint), `4.003969` (RK4), and `2.002533` (equal-weight RK4), all within 15% of their required values. Manual inspection confirmed the stability contrast, exact-solution comparison, and order plot.
 
-## Current Part 2: flow discretization
+## Part 2: flow discretization
 
-The resource contract adds the explicit `--method rk4` argument to the learning-sheet command:
+The command uses the required explicit `--method rk4` argument:
 
 ```sh
-cargo install --path . --quiet
 mkdir -p evidence
 field taylor-green --n 64 \
   | fluid --method rk4 --nu 0.1 --dt 0.01 --t-end 1 --every 0.1 \
@@ -65,9 +64,9 @@ python -m unittest scripts/test_part2.py
 python scripts/part2.py
 ```
 
-The four Fourier derivative errors for `g=sin(3x)cos(2y)` are below `1.6e-13`. Halving the centred-difference spacing gives error ratios from `3.90` to `3.97`. The script writes the current analytic field to ignored `artifacts/taylor-green/exact-t1.json`; the recorded final velocity has relative error `7.038587e-07`, below `1e-5`. It also writes `evidence/taylor-green.png` with the `t=0` and `t=1` vorticity and velocity on a shared colour scale. The student has manually confirmed that the vortex positions and rotation directions agree, while the shared scale shows `max|ω|` falling from `2.000` to about `1.637`.
+The four Fourier derivative errors for `g=sin(3x)cos(2y)` are below `1.6e-13`. Halving the centred-difference spacing gives error ratios from `3.90` to `3.97`. The script writes the current analytic field to ignored `artifacts/taylor-green/exact-t1.json`; the recorded final velocity has relative error `7.038587e-07`, below `1e-5`. It also writes `evidence/taylor-green.png` with the `t=0` and `t=1` vorticity and velocity on a shared colour scale. Manual inspection confirmed matching vortex positions and rotation directions, while the shared scale shows `max|ω|` falling from `2.000` to about `1.637`.
 
-## Current Part 3: stability limit and sensitivity
+## Part 3: stability limit and sensitivity
 
 First generate the full seeded random recording required by both Part 3 and Part 4:
 
@@ -85,9 +84,9 @@ The script reuses the existing baseline random recording and runs only the missi
 
 For Taylor–Green, the diffusive prediction is `0.03157596`; `dt=0.032` remains stable and `dt=0.033` becomes non-finite at `t=7.854`. The random generator gives `Umax=2.79409248` and the advective bound `0.01705224`. Both requested random steps `0.038` and `0.040` fail, so the prescribed downward scan gives `0.026` stable and `0.028` non-finite at `t=1.008`, respectively `1.52` and `1.64` times the bound. Euler at `dt=0.01` is non-finite at `t=0.86`. At `t=20`, the random perturbation distance has grown by a factor `126.64`, while Taylor–Green reaches equality at the six-decimal storage floor before small relative rounding effects reappear.
 
-The script writes `evidence/blowup.png`, `evidence/sensitivity.png`, and `evidence/random.png`. All numerical acceptance checks pass. The student has manually inspected all three figures and confirmed the blow-up, sensitivity, and random-flow evolution plots. Taylor–Green at `dt=0.032` shows no obvious instability only over the displayed interval; this is not evidence of long-time stability. The late Taylor–Green perturbation comparison is limited by the six-decimal snapshot precision.
+The script writes `evidence/blowup.png`, `evidence/sensitivity.png`, and `evidence/random.png`. All numerical acceptance checks pass. Manual inspection confirmed the blow-up, sensitivity, and random-flow evolution plots. Taylor–Green at `dt=0.032` shows no obvious instability only over the displayed interval; this is not evidence of long-time stability. The late Taylor–Green perturbation comparison is limited by the six-decimal snapshot precision.
 
-## Current Part 4: order and step selection
+## Part 4: order and step selection
 
 With the environment active, run from `week4/`:
 
@@ -104,7 +103,7 @@ The main script writes `evidence/order.png`, `evidence/convergence.png`, and `ev
 
 **Prescribed candidate result:** Richardson estimation from `dt=0.02` and `0.01` predicts errors `8.998212e-5`, `1.373018e-5`, and `5.623883e-6`. Therefore none of the three prescribed candidates is below `5e-6`; `dt=0.01` also has measured error `5.393607e-6`. The original result remains `chosen_dt: null`, and the main script exits non-zero instead of relaxing the threshold.
 
-**Supplement after all prescribed candidates failed:** the separately authorized `dt=0.008` run keeps `N=128`, `nu=0.004`, seed 2026, band 2–6, the same initial field, `t_end=2`, and the existing `dt=0.0025` reference. Fourth-order scaling predicts `2.303542e-6`; the measured error is `2.184949e-6`. Both are strictly below `5e-6`. This is a check of one supplemental step, not a claim that `0.008` is the globally largest usable step. Its result is stored separately in `convergence.json`, and `evidence/convergence-supplemental.png` leaves the original candidate plot and null choice unchanged. The student has manually inspected `order.png`, `convergence.png`, and `convergence-supplemental.png` and confirmed all three figures.
+**Supplement after all prescribed candidates failed:** the separately authorized `dt=0.008` run keeps `N=128`, `nu=0.004`, seed 2026, band 2–6, the same initial field, `t_end=2`, and the existing `dt=0.0025` reference. Fourth-order scaling predicts `2.303542e-6`; the measured error is `2.184949e-6`. Both are strictly below `5e-6`. This is a check of one supplemental step, not a claim that `0.008` is the globally largest usable step. Its result is stored separately in `convergence.json`, and `evidence/convergence-supplemental.png` leaves the original candidate plot and null choice unchanged. Manual inspection confirmed `order.png`, `convergence.png`, and `convergence-supplemental.png`.
 
 ## Current-sheet evidence regeneration
 
@@ -122,21 +121,10 @@ Run the commands above in order. The evidence mapping is:
 
 `part4.py` intentionally exits non-zero after writing its evidence because the prescribed candidates have no qualifying step. Run the supplemental command separately afterward; it reuses the retained reference and does not change the null prescribed choice.
 
-## Previous viewer evidence
+## Additional viewer evidence
 
 ```sh
 python scripts/viewer_copy.py
 ```
 
-The script samples the existing `N=128` random recording at every second point in both directions; it does not run another simulation. The generated `fields.jsonl` has 101 frames with 4096 vorticity values per frame and is 3,884,872 bytes. Local viewer frames at `t=0,2,5,10` show small vortices evolving and merging into fewer, larger structures while enstrophy falls. The public viewer was also checked in an incognito window: it loaded all 101 frames from GitHub and displayed intermediate-time vorticity fields. The five `viewer-*.png` files are manual exports: load `fields.jsonl` and export the four random times, and load `artifacts/taylor-green/fields.jsonl` and export `t=1` for the Taylor–Green image. These files are retained from the earlier sheet and do not by themselves complete a numbered Part in the current sheet.
-
-## Previous recorded-field diagnostics
-
-With the environment active, run from `week4/`:
-
-```sh
-python -m unittest scripts/test_analyze_physics.py
-python scripts/analyze_physics.py
-```
-
-The retained analysis reads the full Taylor–Green and random recordings under `artifacts/`; it does not read the reduced root `fields.jsonl` or rerun either simulation. It writes self-contained `evidence/spectrum.html`, `evidence/budget.html`, and `evidence/physics.txt`. These are valid supplemental diagnostics from the earlier sheet, but they are not the current sheet's Part 3 verification and are not marked complete here.
+The script samples the existing `N=128` random recording at every second point in both directions; it does not run another simulation. The generated `fields.jsonl` has 101 frames with 4096 vorticity values per frame and is 3,884,872 bytes. Local viewer frames at `t=0,2,5,10` show small vortices evolving and merging into fewer, larger structures while enstrophy falls. The public viewer was checked in an incognito window: it loaded all 101 frames from GitHub and displayed intermediate-time vorticity fields. The five `viewer-*.png` files are manual exports: load `fields.jsonl` and export the four random times, and load `artifacts/taylor-green/fields.jsonl` and export `t=1` for the Taylor–Green image. These files are retained from the earlier sheet and do not by themselves complete a numbered Part in the current sheet.

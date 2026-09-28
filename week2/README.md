@@ -1,115 +1,86 @@
-# Week 2 molecular dynamics
+# Week 2: molecular dynamics
 
-## Timing
+The Rust crate in `md/` simulates a two-dimensional Lennard–Jones fluid with
+velocity-Verlet integration. It provides naive all-pairs and cell-list force
+paths, deterministic recording, and a linear temperature ramp. The accompanying
+Python scripts validate saved runs and produce figures and videos.
 
-Wall-clock seconds for three sequential runs of each program. Downloads, package
-installation, and Rust compilation were completed before timing.
+## Environment and basic reproduction
+
+The reported measurements used WSL2 (Linux
+6.18.33.2-microsoft-standard-WSL2), an Intel Core i7-8565U with 8 logical
+CPUs, Python 3.14.4, NumPy 2.5.3, and Rust 1.98.1. The videos used Matplotlib
+3.11.2 and FFmpeg 7.0.2. The profiling results used `samply` 0.13.1.
+
+From `week2/`, with NumPy and Matplotlib installed in the active Python
+environment, build, test, and reproduce the standard run with:
+
+```sh
+cargo test --manifest-path md/Cargo.toml
+cargo build --release --manifest-path md/Cargo.toml
+make reproduce
+python3 scripts/check.py artifacts > check.txt
+```
+
+`scripts/video.py` additionally requires an `ffmpeg` executable on `PATH`.
+Generated `artifacts/` directories and Rust build output are not committed.
+
+## Python and Rust timing
+
+The comparison used the
+[course NumPy script](https://giggleliu.github.io/AMAT5315-2026Fall/downloads/week2-sim.py),
+whose SHA-256 was
+`ec03acaf7e28fed74f4faa28a1b30e57924a0c6a1af4afd04a50f3f22ba9f7bc`.
+Dependencies and compilation were completed before timing. Each program ran
+three times sequentially with its own output directory, and every run produced
+200 trajectory frames.
 
 | Program | Median (s) | Range: min–max (s) |
 | --- | ---: | ---: |
-| NumPy week2-sim.py | 23.73 | 23.44–39.78 |
+| NumPy `week2-sim.py` | 23.73 | 23.44–39.78 |
 | Rust debug | 16.66 | 16.42–27.91 |
 | Rust release | 2.89 | 2.60–3.04 |
 
 | Program | Run 1 (s) | Run 2 (s) | Run 3 (s) |
 | --- | ---: | ---: | ---: |
-| NumPy week2-sim.py | 39.78 | 23.44 | 23.73 |
+| NumPy `week2-sim.py` | 39.78 | 23.44 | 23.73 |
 | Rust debug | 27.91 | 16.66 | 16.42 |
 | Rust release | 2.60 | 2.89 | 3.04 |
 
-Measured on 2026-09-18 in WSL2 (Linux 6.18.33.2-microsoft-standard-WSL2),
-Intel Core i7-8565U, 8 logical CPUs. Python 3.14.4 and NumPy 2.5.3 ran in
-`/tmp/amat5315-week2-measure.PcoX5A/venv`; Rust used rustc 1.98.1. The
-[course NumPy script](https://giggleliu.github.io/AMAT5315-2026Fall/downloads/week2-sim.py)
-had SHA-256 `ec03acaf7e28fed74f4faa28a1b30e57924a0c6a1af4afd04a50f3f22ba9f7bc`.
-At the time of these earlier timing runs, the installed `md` at
-`/home/wan_jiaxing/.cargo/bin/md` had the same SHA-256
-(`d6b84de6272f3ce46d9ca5b38cc5d4b078bd267af9c68ab3ba7767333d838d52`)
-as `md/target/release/md` built for that measurement.
-
-The setup ran from `week2/`:
+The first NumPy and debug runs were noticeably slower than their later runs.
+The Rust command used the following physical parameters; replace `OUT` with a
+fresh directory for each timed run:
 
 ```sh
-curl -fL --output /tmp/amat5315-week2-measure.PcoX5A/week2-sim.py https://giggleliu.github.io/AMAT5315-2026Fall/downloads/week2-sim.py
-python3 -m venv /tmp/amat5315-week2-measure.PcoX5A/venv
-/tmp/amat5315-week2-measure.PcoX5A/venv/bin/pip install numpy
-cargo build --manifest-path md/Cargo.toml
-cargo build --release --manifest-path md/Cargo.toml
+./md/target/release/md \
+  --n 100 --rho 0.8 --temperature 0.5 --dt 0.01 \
+  --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 \
+  --out OUT
 ```
 
-For each program below, `i` took the values 1, 2, and 3 in order; the programs
-ran in the table's order. Each run used its own output directory under `/tmp`;
-the NumPy script writes to a
-relative `artifacts/`, so its working directory was the corresponding
-`numpy$i` directory. All nine runs produced 200 trajectory frames. The first
-NumPy and debug runs were noticeably slower than their later runs.
+## Force profiling
 
-```sh
-BASE=/tmp/amat5315-week2-measure.PcoX5A
-(cd "$BASE/numpy$i" && /usr/bin/time -f '%e' -o "$BASE/numpy$i.time" "$BASE/venv/bin/python" "$BASE/week2-sim.py")
-/usr/bin/time -f '%e' -o "$BASE/debug$i.time" ./md/target/debug/md --n 100 --rho 0.8 --temperature 0.5 --dt 0.01 --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 --out "$BASE/debug$i" > "$BASE/debug$i.stdout"
-/usr/bin/time -f '%e' -o "$BASE/release$i.time" md --n 100 --rho 0.8 --temperature 0.5 --dt 0.01 --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 --out "$BASE/release$i" > "$BASE/release$i.stdout"
-```
-
-## Profile
+The saved Firefox Profiler call-tree screenshots give the following displayed
+values:
 
 | Version | Force share (%) | Elapsed time (s) |
 | --- | ---: | ---: |
 | Naive | 98 | 4.1 |
 | Cell list | 95 | 2.3 |
 
-The naive measurement used `samply 0.13.1` with the installed release `md`,
-before any cell list optimization. In the full-range `md` Call Tree shown in
-[profile-naive.png](profile-naive.png), `md::fluid::forces_and_potential` and
-its callees account for 3,948 of 4,013 displayed samples (98.38%, shown as
-98% by Firefox Profiler); the timeline shows 4.1 s. These displayed values
-determine the table. A separate count of the unsymbolicated raw profile found
-3,985 of 4,022 sample stacks with a program counter in the force function's
-machine-code address range (99.08%). That address-range count uses a different
-attribution method from the symbolicated Call Tree and is not the table value.
-The untracked raw profile is
-`/tmp/amat5315-week2-measure.PcoX5A/profile-naive.json.gz`; the run's trajectory
-is in `/tmp/md-prof`. The command ran from `week2/` after the student
-temporarily set `kernel.perf_event_paranoid=1`:
-
-```sh
-samply record --save-only --output /tmp/amat5315-week2-measure.PcoX5A/profile-naive.json.gz md --n 400 --rho 0.8 --temperature 0.5 --dt 0.01 --eq-steps 200 --steps 1000 --sample-every 50 --seed 2026 --out /tmp/md-prof
-```
-
-The first cell-list measurement requested the same `samply 0.13.1` default
-sampling rate (1000 Hz), the same simulation parameters, and the installed
-release `md` (SHA-256 `7f1558d300dba7ba09483e14195d78bcf5fc41365c0c55ff34c8ed55b6581ef2`,
-identical to `md/target/release/md` built from this source, with debug symbols).
-Without a `--force` flag, this build selects `cells`. The first full-range
-`md` Call Tree showed `md::fluid::forces_and_potential_cells` and its callees
-at 3,150 of 3,325 displayed samples (94.74% from those counts; 94% shown by
-Firefox Profiler), and its timeline showed 5.9 s. That first elapsed time was
-1.8 s above the naive screenshot's 4.1 s and did not meet the learning sheet's
-elapsed-time comparison. The first screenshot was replaced by the paired-run
-screenshot described below; its raw profile and trajectory remain outside Git at
-`/tmp/amat5315-week2-cells-profile-zWIoQN/`.
-
-```sh
-samply record --save-only --output /tmp/amat5315-week2-cells-profile-zWIoQN/profile-cells.json.gz md --n 400 --rho 0.8 --temperature 0.5 --dt 0.01 --eq-steps 200 --steps 1000 --sample-every 50 --seed 2026 --out /tmp/amat5315-week2-cells-profile-zWIoQN/run > /tmp/amat5315-week2-cells-profile-zWIoQN/stdout.tsv
-```
-
-After that run, `kernel.perf_event_max_sample_rate` was 750, so a second
-default-rate attempt was rejected before profiling. Without changing WSL
-settings, three sequential naive/cells pairs were then recorded at an explicit
-750 Hz with the **same installed release binary** and parameters. The times
-below are the `md` process lifetime in each real samply profile:
-`(processShutdownTime - processStartupTime) / 1000`, rounded to milliseconds.
-The first profile yields 5.923 s by this method, consistent with its 5.9 s
-Firefox display. Raw profiles and trajectories are outside Git in
-`/tmp/amat5315-week2-paired-profiles-1ROipz/`.
-
-The saved [profile-cells.png](profile-cells.png) shows the full-range `md` Call
-Tree for pair 2's cells run, which is the median of the three cells runs.
+In [profile-naive.png](profile-naive.png),
+`md::fluid::forces_and_potential` and its callees account for 3,948 of 4,013
+displayed samples. In [profile-cells.png](profile-cells.png),
 `md::fluid::forces_and_potential_cells` and its callees account for 1,421 of
-1,491 displayed samples (95.31% from those counts; 95% shown by Firefox
-Profiler), and the timeline shows 2.3 s. The raw `md` process lifetime is
-2.275 s. The Profile table uses the screenshot's displayed 95% and 2.3 s,
-as it does for the naive screenshot.
+1,491 displayed samples. The naive screenshot used the then-default requested
+sampling rate of 1000 Hz; the retained cell-list screenshot is the median
+cell-list run from the controlled 750 Hz comparison below. The screenshot
+times therefore document the evidence files but are not a same-rate pair.
+
+An initial cell-list profile took 5.9 s and did not improve on the 4.1 s naive
+screenshot. Kernel sampling pressure subsequently lowered the available rate,
+so three naive/cell-list pairs were recorded at an explicit 750 Hz with the
+same release binary and parameters:
 
 | Pair at 750 Hz | Naive profile (s) | Naive samples | Cells profile (s) | Cells samples |
 | --- | ---: | ---: | ---: | ---: |
@@ -118,57 +89,37 @@ as it does for the naive screenshot.
 | 3 | 5.120 | 3,591 | 5.172 | 2,853 |
 | Median time | 4.595 | — | 2.275 | — |
 
-The cells median is below the naive median, but one cells run took 5.172 s,
-slightly longer than its paired naive run. The first 5.9 s result remains
-documented above; the table shows the median repeat rather than the fastest
-one. All six paired runs produced byte-identical trajectories. An unprofiled,
-single-run diagnostic with the same physics parameters took 4.65 s (naive)
-and 1.50 s (cells); these are different measurements and do not replace the
-profile times. The slow cells profiles have fewer observed samples per second
-(563 for the first profile and 552 for pair 3, versus 657–715 for the paired
-profiles that ran faster). Summed `threadCPUDelta` in the slow profiles is
-5.899 s and 5.153 s, close to their 5.923 s and 5.172 s process lifetimes,
-so long off-CPU pauses are not supported by these profiles. The lower sample
-density and longer on-CPU time are real. The WSL kernel log around the first
-sampling session reports `perf: interrupt took too long` and lowers
-`perf_event_max_sample_rate` through 1500 and 1250 to 750. This confirms
-sampling pressure and changing effective conditions, but does not quantify
-how much of the extra `md` CPU time came from sampling, CPU speed, or another
-runtime condition. The current cells screenshot's 2.3 s is below the earlier
-naive screenshot's 4.1 s, but those screenshots used different requested
-sampling rates (750 versus 1000 Hz) and different release builds. The paired
-profiles provide a same-binary, same-rate comparison; they do not show a
-consistent speedup on every run.
+The cell-list median is lower, but the third cell-list run is slightly slower
+than its paired naive run. All six paired trajectories are byte-identical.
+The slow profiles also have lower sampling density; changing profiling load,
+CPU speed, or another runtime condition may contribute, so these data do not
+show a consistent per-run speedup.
 
-One paired command, repeated with `--force naive` and `--force cells` and
-separate output paths for pairs 1–3, was:
+The controlled profiles can be regenerated into a temporary directory by
+running the command below once with `METHOD=naive` and once with
+`METHOD=cells`:
 
 ```sh
-samply record --rate 750 --save-only --output /tmp/amat5315-week2-paired-profiles-1ROipz/cells-2.json.gz md --n 400 --rho 0.8 --temperature 0.5 --dt 0.01 --eq-steps 200 --steps 1000 --sample-every 50 --seed 2026 --force cells --out /tmp/amat5315-week2-paired-profiles-1ROipz/cells-2 > /tmp/amat5315-week2-paired-profiles-1ROipz/cells-2.stdout
+PROFILE_DIR=$(mktemp -d)
+METHOD=cells
+samply record --rate 750 --save-only \
+  --output "$PROFILE_DIR/$METHOD.json.gz" \
+  ./md/target/release/md \
+  --n 400 --rho 0.8 --temperature 0.5 --dt 0.01 \
+  --eq-steps 200 --steps 1000 --sample-every 50 --seed 2026 \
+  --force "$METHOD" --out "$PROFILE_DIR/$METHOD"
 ```
 
-## Benchmark
+Load the resulting profile with `samply load` and select the full-range `md`
+Call Tree to inspect the force share and process timeline.
 
-On 2026-09-18, the release binary `md/target/release/md` (SHA-256
-`7f1558d300dba7ba09483e14195d78bcf5fc41365c0c55ff34c8ed55b6581ef2`)
-ran on the WSL2 machine described above. A release build was checked before
-timing; compilation and installation were excluded. Each wall time came from
-`time.perf_counter_ns()` immediately around one sequential `md` subprocess.
-For each N and repetition, naive and cells ran next to each other; their order
-was reversed in the middle repetition. Every run used its own output folder
-under `/tmp/amat5315-week2-scaling.cfdWV4/`, with no profiling or ramp. The
-commands had this form, with N = 100, 400, or 1600; repetition = 1, 2, or 3;
-and force = naive or cells:
+## Scaling benchmark
 
-```sh
-BASE=/tmp/amat5315-week2-scaling.cfdWV4
-./md/target/release/md --n "$n" --rho 0.8 --temperature 0.5 --dt 0.01 --eq-steps 100 --steps 500 --sample-every 50 --seed 2026 --force "$force" --out "$BASE/n${n}-r${repetition}-${force}"
-```
-
-Raw wall times, in seconds, are below. The JSONL measurement log and all 18
-generated runs remain in the `/tmp` folder; each run produced the expected ten
-saved frames. Naive and cells trajectories were byte-identical in all nine
-matched pairs.
+The release benchmark was run on 2026-09-18 on the machine described above.
+Each wall time surrounded one sequential subprocess; compilation was excluded.
+For each particle count and repetition, naive and cell-list runs were adjacent,
+with their order reversed in the middle repetition. Every matched pair produced
+byte-identical trajectories and ten saved frames.
 
 | N | Repetition | Naive (s) | Cells (s) |
 | ---: | ---: | ---: | ---: |
@@ -182,76 +133,73 @@ matched pairs.
 | 1600 | 2 | 35.581781 | 3.390734 |
 | 1600 | 3 | 36.740791 | 3.314179 |
 
-Each time below is the median of three wall times, followed by their minimum
-and maximum. Speedup is naive median divided by cells median; its range gives
-the smallest and largest naive/cells ratio within the three matched pairs.
-
 | N | Naive: median [range] (s) | Cells: median [range] (s) | Speedup: ratio of medians [paired range] |
 | ---: | ---: | ---: | ---: |
 | 100 | 0.165563 [0.160253–0.173535] | 0.208762 [0.206605–0.223114] | 0.793× [0.742–0.840×] |
 | 400 | 2.524566 [2.472577–3.866570] | 0.852067 [0.808738–0.893196] | 2.963× [2.826–4.781×] |
 | 1600 | 36.164243 [35.581781–36.740791] | 3.314179 [3.153881–3.390734] | 10.912× [10.494–11.467×] |
 
-[scaling.png](scaling.png) plots each median wall time divided by all 600
-integration steps (100 equilibration + 500 production), with min–max bars.
-The naive seconds/step are 0.000275938, 0.004207609, and 0.060273738;
-the cells values are 0.000347936, 0.001420112, and 0.005523632 at N =
-100, 400, and 1600, respectively. The speedup rises with N and exceeds 2
-at N = 1600. At fixed density, naive searches all N(N−1)/2 atom pairs while
-the cell list searches nearby bins, so its cost grows more slowly; cell-list
-setup outweighs that benefit at N = 100. These wall times include process
-startup and trajectory writing, so the short N = 100 runs are especially
-sensitive to overhead. The first N = 400 naive run was slower than its later
-repetitions; its full range is retained rather than adjusted.
-
-## Heating, cold, and hot
-
-The following commands ran from `week2/` using the installed release `md`,
-which matched `md/target/release/md` byte for byte (SHA-256
-`7f1558d300dba7ba09483e14195d78bcf5fc41365c0c55ff34c8ed55b6581ef2`).
-The fixed-temperature trajectories and stdout logs remain only in
-`/tmp/amat5315-week2-verify5.a9tcve/`; the formal ramp output is in
-`heating/`. The video commands used Matplotlib 3.11.2 from
-`/tmp/amat5315-week2-plot/bin/python` and FFmpeg 7.0.2 bundled with that
-environment's `imageio_ffmpeg`, exposed as `ffmpeg` in the temporary `bin/`
-directory. No system FFmpeg installation was needed.
+The command form below was repeated for `N=100,400,1600`, three repetitions,
+and both force methods, using a fresh output path each time:
 
 ```sh
-md --n 400 --rho 0.8 --temperature 0.2 --ramp-to 1.2 --dt 0.01 --eq-steps 2000 --steps 20000 --sample-every 100 --seed 2026 --out heating > /tmp/amat5315-week2-verify5.a9tcve/heating.stdout
-md --n 100 --rho 0.8 --temperature 0.2 --dt 0.01 --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 --out /tmp/amat5315-week2-verify5.a9tcve/cold > /tmp/amat5315-week2-verify5.a9tcve/cold.stdout
-md --n 100 --rho 0.8 --temperature 1.0 --dt 0.01 --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 --out /tmp/amat5315-week2-verify5.a9tcve/hot > /tmp/amat5315-week2-verify5.a9tcve/hot.stdout
-PATH=/tmp/amat5315-week2-verify5.a9tcve/bin:$PATH MPLCONFIGDIR=/tmp/amat5315-week2-verify5.a9tcve/mplconfig /tmp/amat5315-week2-plot/bin/python scripts/video.py /tmp/amat5315-week2-verify5.a9tcve/cold cold.mp4
-PATH=/tmp/amat5315-week2-verify5.a9tcve/bin:$PATH MPLCONFIGDIR=/tmp/amat5315-week2-verify5.a9tcve/mplconfig /tmp/amat5315-week2-plot/bin/python scripts/video.py /tmp/amat5315-week2-verify5.a9tcve/hot hot.mp4
+./md/target/release/md \
+  --n "$N" --rho 0.8 --temperature 0.5 --dt 0.01 \
+  --eq-steps 100 --steps 500 --sample-every 50 --seed 2026 \
+  --force "$METHOD" --out "$OUT"
 ```
 
-The ramp metadata records N = 400, target 0.2 to 1.2, 2000 equilibration
-steps, 20000 production steps, and a frame every 100 production steps.
-`heating/traj.jsonl` contains exactly 200 frames, from steps 100 through
-20000. Recomputing the thermostat temperature as
-`sum(v_x² + v_y²)/(2N−2)` from each saved velocity array gives 0.205000000
-at the first saved step and 1.1999999999 at the last; the target values at
-those steps are 0.205 and 1.2. All 200 measured temperatures increase, and
-the largest absolute difference from the linear target is 5.45e-10. Step zero
-is not saved, so the first visible temperature is 0.205 rather than 0.2.
+[scaling.png](scaling.png) plots median wall time per integration step with
+min–max bars. The cell-list setup costs more at `N=100`, but the speedup rises
+with system size because the naive method searches every particle pair. The
+times include startup and trajectory output, and the first `N=400` naive run
+is slower than the other two; the full range is retained. The original
+one-off plotting helper was not retained, so the figure is documented by the
+raw values and definitions above rather than by a repository script.
 
-The following structure values were recomputed from saved positions using
-minimum-image pair distances, radial bins about 0.1 wide, and annular-area
-normalization. For long-range contrast, the root-mean-square of `g(r)−1` over
-2.5 ≤ r ≤ 5.0 falls from 0.629 in the ramp's first 20 frames to 0.123 in its
-last 20; the largest peak in that interval falls from 2.48 to 1.19. In the
-two fixed-temperature runs, the same contrast over all 200 frames is 0.538
-(cold) versus 0.140 (hot); the first-shell peak is 4.43 versus 2.88. The
-videos' decoded first and last frames show two panels with
-atoms and a running `g(r)`, plus the production time and frame number. Cold
-keeps lattice-like positions and distinct peaks out to r ≈ 5; hot has a first
-shell and weaker longer-range structure. Comparing the six nearest-neighbour
-identities per atom between the first and last saved frames, cold retains
-99.8% and hot retains 4.3%, consistent with vibration versus neighbour
-exchange. The hot `g(r)` fluctuates around 1 beyond the first shell; finite
-system size and finite sampling keep it from being exactly flat.
+## Heating, cold, and hot runs
 
-FFmpeg independently decoded 200 video frames from each MP4 at 20 fps,
-lasting 10 seconds with no reported dropped frames. The evidence sizes are:
+After the release build, the trajectories and videos can be regenerated from
+`week2/` with NumPy, Matplotlib, and FFmpeg available:
+
+```sh
+RUN_DIR=$(mktemp -d)
+./md/target/release/md \
+  --n 400 --rho 0.8 --temperature 0.2 --ramp-to 1.2 --dt 0.01 \
+  --eq-steps 2000 --steps 20000 --sample-every 100 --seed 2026 \
+  --out heating > "$RUN_DIR/heating.tsv"
+./md/target/release/md \
+  --n 100 --rho 0.8 --temperature 0.2 --dt 0.01 \
+  --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 \
+  --out "$RUN_DIR/cold" > "$RUN_DIR/cold.tsv"
+./md/target/release/md \
+  --n 100 --rho 0.8 --temperature 1.0 --dt 0.01 \
+  --eq-steps 2000 --steps 10000 --sample-every 50 --seed 2026 \
+  --out "$RUN_DIR/hot" > "$RUN_DIR/hot.tsv"
+python3 scripts/video.py "$RUN_DIR/cold" cold.mp4
+python3 scripts/video.py "$RUN_DIR/hot" hot.mp4
+```
+
+The committed ramp has 200 frames from production steps 100 through 20000.
+Temperatures recomputed as `sum(v_x²+v_y²)/(2N−2)` rise monotonically from
+0.205000000 to 1.1999999999; the maximum absolute difference from the linear
+target is `5.45e-10`. Step zero is not saved, so the first visible target is
+0.205 rather than 0.2.
+
+Using minimum-image distances, radial bins about 0.1 wide, and annular-area
+normalization, the RMS of `g(r)−1` over `2.5 ≤ r ≤ 5.0` falls from 0.629
+in the first 20 ramp frames to 0.123 in the last 20. The largest peak over
+that interval falls from 2.48 to 1.19. In the fixed-temperature runs, the
+same contrast is 0.538 for cold and 0.140 for hot; first-shell peaks are 4.43
+and 2.88. The cold run retains 99.8% of the six nearest-neighbour identities,
+whereas the hot run retains 4.3%, consistent with vibration versus neighbour
+exchange. Finite size and sampling keep the hot long-range `g(r)` from being
+exactly one. The videos show lattice-like cold positions with distinct
+long-range peaks, while the hot run retains a first shell with much weaker
+long-range structure.
+
+FFmpeg decoded 200 frames from each MP4 at 20 fps, lasting 10 seconds with no
+reported dropped frames. All required evidence files are below 5 MB:
 
 | Evidence file | Size (bytes) |
 | --- | ---: |
@@ -260,27 +208,26 @@ lasting 10 seconds with no reported dropped frames. The evidence sizes are:
 | `cold.mp4` | 627,020 |
 | `hot.mp4` | 691,595 |
 
-Each is below 5,000,000 bytes; the trajectory retains the specified nine
-significant digits. The public course viewer needs the committed trajectory
-at a GitHub raw URL. It has **not** been verified publicly because this work
-has not been pushed.
+The trajectory retains the specified nine significant digits. It can be
+supplied to the course viewer through its GitHub raw URL. `fluid-viewer.png`
+is a retained manual viewer export; no separate public-viewer load verification
+is recorded.
 
-### Evidence generation index
+## Evidence index
 
-The generating commands below run from `week2/` unless noted. Browser
-screenshots and exports are identified as manual steps.
+Commands run from `week2/` unless noted. Profiler screenshots and viewer
+exports require manual inspection.
 
-| Week 2 evidence | Generator or inspection step |
+| Evidence | Generator or inspection step |
 | --- | --- |
 | `force-comparison.txt` | `cargo run --manifest-path md/Cargo.toml --example force_comparison > force-comparison.txt` |
-| `field.png` | `python3 plot_field.py` (calls Rust `field_data` example) |
+| `field.png` | `python3 plot_field.py` |
 | `dimer.png` | `cargo run --manifest-path md/Cargo.toml --example dimer` |
 | `check.txt` | `make reproduce`, then `python3 scripts/check.py artifacts > check.txt` |
 | `fluid.mp4` | `python3 scripts/video.py artifacts fluid.mp4` |
-| `fluid-viewer.png` | Manual Save PNG export from the course viewer after loading the fluid run |
-| `force-paths.txt` | `cargo test --manifest-path md/Cargo.toml --test force_paths -- --nocapture --test-threads=1`; report includes its printed values |
-| `profile-naive.png` | Firefox Profiler Call Tree screenshot from the naive `samply record` command in Profile above |
-| `profile-cells.png` | Firefox Profiler Call Tree screenshot after `samply load /tmp/amat5315-week2-paired-profiles-1ROipz/cells-2.json.gz` |
-| `scaling.png` | `MPLCONFIGDIR=/tmp/amat5315-week2-scaling.cfdWV4/mplconfig /tmp/amat5315-week2-plot/bin/python /tmp/amat5315-week2-scaling.cfdWV4/plot.py`, using the raw times in Benchmark |
-| `heating/run.json`, `heating/traj.jsonl` | N = 400 ramp `md` command above |
-| `cold.mp4`, `hot.mp4` | Fixed-temperature `md` and `scripts/video.py` commands above |
+| `fluid-viewer.png` | Manual viewer export after loading the standard fluid run |
+| `force-paths.txt` | `cargo test --manifest-path md/Cargo.toml --test force_paths -- --nocapture --test-threads=1` |
+| `profile-naive.png`, `profile-cells.png` | Firefox Profiler Call Tree exports from the profiling procedure above |
+| `scaling.png` | Plot of the raw benchmark values above; original plotting helper was not retained |
+| `heating/run.json`, `heating/traj.jsonl` | Temperature-ramp command above |
+| `cold.mp4`, `hot.mp4` | Fixed-temperature and video commands above |
